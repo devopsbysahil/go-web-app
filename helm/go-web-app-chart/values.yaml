@@ -1,23 +1,121 @@
-# Default values for go-web-app-chart.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# CI/CD using GitHub Actions
 
-replicaCount: 1
+name: CI/CD
 
+<<<<<<< HEAD
 image:
   repository: abhishekf5/go-web-app
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "37314564118"
+=======
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'helm/**'
+      - 'K8s/**'
+      - 'README.md'
+>>>>>>> 706e8ac (Fix Helm image tag update)
 
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  hosts:
-    - host: chart-example.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build
+        run: go build -o go-web-app
+
+      - name: Test
+        run: go test ./...
+
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+
+
+  push:
+    runs-on: ubuntu-latest
+
+    needs:
+      - build
+      - code-quality
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/go-web-app:${{ github.run_id }}
+
+
+  update-newtag-in-helm-chart:
+    runs-on: ubuntu-latest
+
+    needs: push
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN }}
+
+      - name: Update tag in Helm chart
+        run: |
+          echo "GitHub Run ID: ${{ github.run_id }}"
+          echo "Before update:"
+          cat helm/go-web-app-chart/values.yaml
+
+          sed -i "s/^ *tag:.*/  tag: \"${{ github.run_id }}\"/" helm/go-web-app-chart/values.yaml
+
+          echo "After update:"
+          cat helm/go-web-app-chart/values.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.email "dhimansahil212@gmail.com"
+          git config --global user.name "Sahil Dhiman"
+
+          git add helm/go-web-app-chart/values.yaml
+
+          git commit -m "Update image tag to ${{ github.run_id }}"
+
+          git push
