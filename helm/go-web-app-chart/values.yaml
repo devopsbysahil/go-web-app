@@ -2,13 +2,6 @@
 
 name: CI/CD
 
-<<<<<<< HEAD
-image:
-  repository: abhishekf5/go-web-app
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "37314564118"
-=======
 on:
   push:
     branches:
@@ -17,7 +10,6 @@ on:
       - 'helm/**'
       - 'K8s/**'
       - 'README.md'
->>>>>>> 706e8ac (Fix Helm image tag update)
 
 jobs:
 
